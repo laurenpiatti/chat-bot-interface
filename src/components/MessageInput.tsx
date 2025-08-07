@@ -1,4 +1,3 @@
-// src/components/MessageInput.tsx
 import { useState, useRef, useEffect } from "react";
 import { commands, tags, users } from "../data/mockData";
 import { SuggestionPopover } from "./SuggestionPopover";
@@ -16,6 +15,7 @@ export const MessageInput = ({ onSend }: Props) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showPopover, setShowPopover] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -35,7 +35,10 @@ export const MessageInput = ({ onSend }: Props) => {
       setQuery(word);
 
       if (symbol === "/") {
-        setSuggestions(commands.filter((cmd) => cmd.includes(`/${word}`)));
+        const lowerWord = word.toLowerCase();
+        setSuggestions(
+          commands.filter((cmd) => cmd.toLowerCase().includes(`/${lowerWord}`))
+        );
       } else if (symbol === "@") {
         setSuggestions(
           users
@@ -53,14 +56,43 @@ export const MessageInput = ({ onSend }: Props) => {
     }
   };
 
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [suggestions, showPopover]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      showPopover &&
+      (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab")
+    ) {
+      e.preventDefault();
+
+      if (e.key === "ArrowDown" || e.key === "Tab") {
+        setHighlightedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === "ArrowUp") {
+        setHighlightedIndex((prev) =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+      }
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      if (highlightedIndex >= 0) {
+        handleSuggestionSelect(suggestions[highlightedIndex]);
+        setHighlightedIndex(-1);
+        return;
+      }
+
       if (input.trim()) {
         onSend(input.trim());
         setInput("");
         setShowPopover(false);
         setTrigger(null);
+        setHighlightedIndex(-1);
       }
     }
   };
@@ -85,11 +117,11 @@ export const MessageInput = ({ onSend }: Props) => {
   };
 
   return (
-    <div className="relative">
+    <div className="max-w-3xl mx-auto w-full relative">
       <textarea
         ref={textareaRef}
-        className="w-full border rounded p-3 resize-none overflow-hidden min-h-[50px] max-h-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        placeholder="Type a message... (press Enter to send, Shift+Enter for newline)"
+        className="w-full rounded-xl border border-gray-300 p-3 resize-none overflow-hidden min-h-[48px] max-h-40 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-white shadow"
+        placeholder="Send a message"
         value={input}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -97,11 +129,12 @@ export const MessageInput = ({ onSend }: Props) => {
       />
 
       {showPopover && suggestions.length > 0 && trigger && (
-        <div className="absolute z-10 bg-white border rounded shadow-md mt-1 w-60">
+        <div className="absolute bottom-full mb-2 w-60 z-10 left-0">
           <SuggestionPopover
             trigger={trigger}
             query={query}
             suggestions={suggestions}
+            highlightedIndex={highlightedIndex}
             onSelect={handleSuggestionSelect}
           />
         </div>
